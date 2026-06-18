@@ -18,8 +18,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
-OLLAMA_MODEL = "llama3.2"
-MAX_PAPERS = 5
+OLLAMA_MODEL = "llama3.2:1b"  # faster; swap to "llama3.2" for higher quality
+MAX_PAPERS = 3               # fewer papers = faster indexing
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 200
 
@@ -28,6 +28,16 @@ chroma = chromadb.Client()
 collection = chroma.get_or_create_collection("arxiv_papers")
 indexed_papers = {}
 conversation_history = []
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Pre-warm the model so the first user request isn't slow
+    try:
+        ollama.chat(model=OLLAMA_MODEL, messages=[{"role": "user", "content": "hi"}])
+    except Exception:
+        pass
+    yield
 
 
 # ── RAG helpers (same logic as arxiv_rag.py) ────────────────────────────────
@@ -138,7 +148,7 @@ def build_system_prompt() -> str:
 
 # ── FastAPI app ──────────────────────────────────────────────────────────────
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 
 class ChatRequest(BaseModel):
@@ -188,12 +198,11 @@ async def chat(req: ChatRequest):
                 user_message,
                 flags=re.IGNORECASE,
             ).strip()
+            cat_label = f" in {category}" if category else ""
+            yield f"data: {{\"type\": \"status\", \"text\": \"Searching arXiv{cat_label}...\"}}\n\n"
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, search_and_index, query, category)
-            status = f"Fetched {len(indexed_papers)} paper(s) from arXiv"
-            if category:
-                status += f" · category: {category}"
-            yield f"data: {{\"type\": \"status\", \"text\": \"{status}\"}}\n\n"
+            yield f"data: {{\"type\": \"status\", \"text\": \"Indexed {len(indexed_papers)} paper(s) — generating answer...\"}}\n\n"
 
         context = retrieve_context(user_message)
         augmented = (
