@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import anthropic, arxiv, chromadb, sentence_transformers, fitz, httpx, rich; print\\('All imports OK'\\)\")",
+      "Bash(python3 /Users/nickparsons/Claude/arxiv_rag.py --help)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(pip3 install *)",
+      "Bash(mkdir -p /Users/nickparsons/Claude/.claude)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git config *)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+ollama
+arxiv
+chromadb
+sentence-transformers
+PyMuPDF
+httpx
+rich
