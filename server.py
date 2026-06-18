@@ -4,6 +4,7 @@ Run with: uvicorn server:app --reload
 """
 
 import re
+import json
 import asyncio
 from typing import Optional, AsyncGenerator
 from contextlib import asynccontextmanager
@@ -199,10 +200,10 @@ async def chat(req: ChatRequest):
                 flags=re.IGNORECASE,
             ).strip()
             cat_label = f" in {category}" if category else ""
-            yield f"data: {{\"type\": \"status\", \"text\": \"Searching arXiv{cat_label}...\"}}\n\n"
+            yield f"data: {json.dumps({'type': 'status', 'text': f'Searching arXiv{cat_label}...'})}\n\n"
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, search_and_index, query, category)
-            yield f"data: {{\"type\": \"status\", \"text\": \"Indexed {len(indexed_papers)} paper(s) — generating answer...\"}}\n\n"
+            yield f"data: {json.dumps({'type': 'status', 'text': f'Indexed {len(indexed_papers)} paper(s) — generating answer...'})}\n\n"
 
         context = retrieve_context(user_message)
         augmented = (
@@ -218,9 +219,7 @@ async def chat(req: ChatRequest):
         for chunk in stream:
             text = chunk["message"]["content"]
             full_response += text
-            # Escape for SSE
-            safe = text.replace("\n", "\\n").replace('"', '\\"')
-            yield f'data: {{"type": "token", "text": "{safe}"}}\n\n'
+            yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
 
         conversation_history[-1] = {"role": "user", "content": user_message}
         conversation_history.append({"role": "assistant", "content": full_response})

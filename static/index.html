@@ -415,7 +415,7 @@
         if (data.type === 'status') {
           addMessage('status', data.text);
         } else if (data.type === 'token') {
-          rawText += data.text.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+          rawText += data.text;
           bubble.innerHTML = marked.parse(rawText);
           bubble.appendChild(cursor);
           messagesEl.scrollTop = messagesEl.scrollHeight;
