@@ -89,8 +89,9 @@ def index_paper(paper: arxiv.Result) -> str:
     return paper_id
 
 
-def search_and_index(query: str) -> "list[str]":
-    search = arxiv.Search(query=query, max_results=MAX_PAPERS, sort_by=arxiv.SortCriterion.Relevance)
+def search_and_index(query: str, category: Optional[str] = None) -> "list[str]":
+    full_query = f"cat:{category} AND {query}" if category else query
+    search = arxiv.Search(query=full_query, max_results=MAX_PAPERS, sort_by=arxiv.SortCriterion.Relevance)
     return [index_paper(p) for p in search.results()]
 
 
@@ -142,10 +143,12 @@ app = FastAPI()
 
 class ChatRequest(BaseModel):
     message: str
+    category: Optional[str] = None
 
 
 class SearchRequest(BaseModel):
     query: str
+    category: Optional[str] = None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -162,13 +165,14 @@ async def get_papers():
 @app.post("/search")
 async def search(req: SearchRequest):
     loop = asyncio.get_event_loop()
-    ids = await loop.run_in_executor(None, search_and_index, req.query)
+    ids = await loop.run_in_executor(None, search_and_index, req.query, req.category)
     return {"indexed": len(ids), "papers": [indexed_papers[i] for i in ids if i in indexed_papers]}
 
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
     user_message = req.message
+    category = req.category
 
     search_triggers = re.compile(
         r"\b(search|find|look up|fetch|get papers? (on|about)|papers? on|arxiv)\b",
@@ -185,8 +189,11 @@ async def chat(req: ChatRequest):
                 flags=re.IGNORECASE,
             ).strip()
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, search_and_index, query)
-            yield f"data: {{\"type\": \"status\", \"text\": \"Fetched {len(indexed_papers)} paper(s) from arXiv\"}}\n\n"
+            await loop.run_in_executor(None, search_and_index, query, category)
+            status = f"Fetched {len(indexed_papers)} paper(s) from arXiv"
+            if category:
+                status += f" · category: {category}"
+            yield f"data: {{\"type\": \"status\", \"text\": \"{status}\"}}\n\n"
 
         context = retrieve_context(user_message)
         augmented = (

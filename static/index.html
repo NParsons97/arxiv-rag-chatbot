@@ -49,6 +49,20 @@
     }
     #clear-btn:hover { border-color: #8b949e; color: #e1e4e8; }
 
+    #category-select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e1e4e8;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      max-width: 260px;
+    }
+    #category-select:focus { outline: none; border-color: #58a6ff; }
+    #category-select option[disabled] { color: #484f58; }
+
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -218,7 +232,70 @@
     <h1>arXiv RAG Chatbot</h1>
     <span>Powered by Ollama · llama3.2</span>
   </div>
-  <button id="clear-btn">Clear chat</button>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <select id="category-select">
+      <option value="">All subjects</option>
+      <optgroup label="Computer Science">
+        <option value="cs.AI">cs.AI — Artificial Intelligence</option>
+        <option value="cs.CL">cs.CL — Computation and Language</option>
+        <option value="cs.CV">cs.CV — Computer Vision</option>
+        <option value="cs.LG">cs.LG — Machine Learning</option>
+        <option value="cs.RO">cs.RO — Robotics</option>
+        <option value="cs.CR">cs.CR — Cryptography and Security</option>
+        <option value="cs.DS">cs.DS — Data Structures and Algorithms</option>
+        <option value="cs.SE">cs.SE — Software Engineering</option>
+        <option value="cs.NE">cs.NE — Neural and Evolutionary Computing</option>
+        <option value="cs.IR">cs.IR — Information Retrieval</option>
+      </optgroup>
+      <optgroup label="Mathematics">
+        <option value="math.ST">math.ST — Statistics Theory</option>
+        <option value="math.OC">math.OC — Optimization and Control</option>
+        <option value="math.PR">math.PR — Probability</option>
+        <option value="math.NA">math.NA — Numerical Analysis</option>
+        <option value="math.CO">math.CO — Combinatorics</option>
+      </optgroup>
+      <optgroup label="Physics">
+        <option value="astro-ph.CO">astro-ph.CO — Cosmology and Nongalactic Astrophysics</option>
+        <option value="astro-ph.EP">astro-ph.EP — Earth and Planetary Astrophysics</option>
+        <option value="astro-ph.GA">astro-ph.GA — Astrophysics of Galaxies</option>
+        <option value="astro-ph.HE">astro-ph.HE — High Energy Astrophysical Phenomena</option>
+        <option value="astro-ph.IM">astro-ph.IM — Instrumentation and Methods for Astrophysics</option>
+        <option value="astro-ph.SR">astro-ph.SR — Solar and Stellar Astrophysics</option>
+        <option value="cond-mat.mes-hall">cond-mat.mes-hall — Mesoscale and Nanoscale Physics</option>
+        <option value="cond-mat.mtrl-sci">cond-mat.mtrl-sci — Materials Science</option>
+        <option value="gr-qc">gr-qc — General Relativity and Quantum Cosmology</option>
+        <option value="hep-ph">hep-ph — High Energy Physics – Phenomenology</option>
+        <option value="hep-th">hep-th — High Energy Physics – Theory</option>
+        <option value="quant-ph">quant-ph — Quantum Physics</option>
+        <option value="physics.bio-ph">physics.bio-ph — Biological Physics</option>
+        <option value="physics.chem-ph">physics.chem-ph — Chemical Physics</option>
+      </optgroup>
+      <optgroup label="Biology">
+        <option value="q-bio.BM">q-bio.BM — Biomolecules</option>
+        <option value="q-bio.GN">q-bio.GN — Genomics</option>
+        <option value="q-bio.NC">q-bio.NC — Neurons and Cognition</option>
+        <option value="q-bio.PE">q-bio.PE — Populations and Evolution</option>
+      </optgroup>
+      <optgroup label="Statistics">
+        <option value="stat.ML">stat.ML — Machine Learning</option>
+        <option value="stat.ME">stat.ME — Methodology</option>
+        <option value="stat.AP">stat.AP — Applications</option>
+      </optgroup>
+      <optgroup label="Economics">
+        <option value="econ.EM">econ.EM — Econometrics</option>
+        <option value="econ.GN">econ.GN — General Economics</option>
+        <option value="q-fin.CP">q-fin.CP — Computational Finance</option>
+        <option value="q-fin.PM">q-fin.PM — Portfolio Management</option>
+      </optgroup>
+      <optgroup label="Electrical Engineering">
+        <option value="eess.AS">eess.AS — Audio and Speech Processing</option>
+        <option value="eess.IV">eess.IV — Image and Video Processing</option>
+        <option value="eess.SP">eess.SP — Signal Processing</option>
+        <option value="eess.SY">eess.SY — Systems and Control</option>
+      </optgroup>
+    </select>
+    <button id="clear-btn">Clear chat</button>
+  </div>
 </header>
 
 <div id="messages">
@@ -241,6 +318,7 @@
   const inputEl = document.getElementById('user-input');
   const sendBtn = document.getElementById('send-btn');
   const clearBtn = document.getElementById('clear-btn');
+  const categorySelect = document.getElementById('category-select');
   const emptyState = document.getElementById('empty-state');
 
   let isStreaming = false;
@@ -310,10 +388,12 @@
 
     let rawText = '';
 
+    const category = categorySelect.value || null;
+
     const res = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, category }),
     });
 
     const reader = res.body.getReader();
