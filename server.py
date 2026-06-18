@@ -106,27 +106,38 @@ def search_and_index(query: str, category: Optional[str] = None) -> "list[str]":
     return [index_paper(p) for p in search.results()]
 
 
-def retrieve_context(query: str, n_results: int = 8) -> str:
+def retrieve_context(query: str, n_results: int = 8):
+    """Returns (context_string, sources_list) where sources_list has one entry per paper."""
     if collection.count() == 0:
-        return ""
+        return "", []
     query_embedding = embedder.encode([query]).tolist()
     results = collection.query(
         query_embeddings=query_embedding,
         n_results=min(n_results, collection.count()),
         include=["documents", "metadatas"],
     )
-    seen = set()
+    seen = {}   # paper_id -> source entry
     parts = []
     for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
         pid = meta["paper_id"]
-        header = (
-            f"--- Paper: {meta['title']} ({meta['published']}) ---\n"
-            f"Authors: {meta['authors']}\nURL: {meta['url']}\n\n"
-            if pid not in seen else f"--- (continued: {meta['title']}) ---\n"
-        )
-        seen.add(pid)
-        parts.append(header + doc)
-    return "\n\n".join(parts)
+        if pid not in seen:
+            seen[pid] = {
+                "title": meta["title"],
+                "authors": meta["authors"],
+                "published": meta["published"],
+                "url": meta["url"],
+                "excerpts": [],
+            }
+            parts.append(
+                f"--- Paper: {meta['title']} ({meta['published']}) ---\n"
+                f"Authors: {meta['authors']}\nURL: {meta['url']}\n\n{doc}"
+            )
+        else:
+            parts.append(f"--- (continued: {meta['title']}) ---\n{doc}")
+        # Keep the two most relevant excerpts per paper
+        if len(seen[pid]["excerpts"]) < 2:
+            seen[pid]["excerpts"].append(doc[:400].strip())
+    return "\n\n".join(parts), list(seen.values())
 
 
 def build_system_prompt() -> str:
@@ -205,7 +216,7 @@ async def chat(req: ChatRequest):
             await loop.run_in_executor(None, search_and_index, query, category)
             yield f"data: {json.dumps({'type': 'status', 'text': f'Indexed {len(indexed_papers)} paper(s) — generating answer...'})}\n\n"
 
-        context = retrieve_context(user_message)
+        context, sources = retrieve_context(user_message)
         augmented = (
             f"<retrieved_context>\n{context}\n</retrieved_context>\n\nUser question: {user_message}"
             if context else user_message
@@ -223,6 +234,8 @@ async def chat(req: ChatRequest):
 
         conversation_history[-1] = {"role": "user", "content": user_message}
         conversation_history.append({"role": "assistant", "content": full_response})
+        if sources:
+            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
         yield 'data: {"type": "done"}\n\n'
 
     return StreamingResponse(generate(), media_type="text/event-stream")
