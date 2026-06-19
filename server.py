@@ -73,7 +73,7 @@ def index_paper(paper: arxiv.Result) -> str:
         return paper_id
 
     abstract = paper.summary.strip()
-    text = f"Title: {paper.title}\n\nAuthors: {', '.join(str(a) for a in paper.authors)}\n\nAbstract:\n{abstract}"
+    text = fetch_full_text(paper) or f"Title: {paper.title}\n\nAuthors: {', '.join(str(a) for a in paper.authors)}\n\nAbstract:\n{abstract}"
 
     chunks = chunk_text(text)
     embeddings = embedder.encode(chunks).tolist()
