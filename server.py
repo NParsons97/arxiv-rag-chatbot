@@ -102,7 +102,12 @@ def index_paper(paper: arxiv.Result) -> str:
 
 def search_and_index(query: str, category: Optional[str] = None) -> "list[str]":
     full_query = f"cat:{category} AND {query}" if category else query
-    search = arxiv.Search(query=full_query, max_results=MAX_PAPERS, sort_by=arxiv.SortCriterion.Relevance)
+    search = arxiv.Search(
+        query=full_query,
+        max_results=MAX_PAPERS,
+        sort_by=arxiv.SortCriterion.SubmittedDate,
+        sort_order=arxiv.SortOrder.Descending,
+    )
     return [index_paper(p) for p in search.results()]
 
 
