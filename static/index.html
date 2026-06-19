@@ -382,6 +382,18 @@
   const categorySelect = document.getElementById('category-select');
   const emptyState = document.getElementById('empty-state');
 
+  function updateInputLock() {
+    const locked = !categorySelect.value;
+    inputEl.disabled = locked;
+    sendBtn.disabled = locked;
+    inputEl.placeholder = locked
+      ? 'Select a subject from the dropdown above to get started…'
+      : 'Ask about a paper or topic…';
+  }
+
+  categorySelect.addEventListener('change', updateInputLock);
+  updateInputLock(); // lock on page load
+
   let isStreaming = false;
 
   // Auto-resize textarea
