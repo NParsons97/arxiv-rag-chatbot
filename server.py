@@ -100,15 +100,31 @@ def index_paper(paper: arxiv.Result) -> str:
     return paper_id
 
 
+def extract_keywords(text: str) -> str:
+    """Strip question words and filler so arXiv gets clean keywords."""
+    text = re.sub(
+        r"^(what(?:'s| is| are)?|tell me about|explain|summarize|find|search for|"
+        r"look up|fetch|get|show me|give me|the latest|recent|new)\s+",
+        "", text, flags=re.IGNORECASE,
+    ).strip()
+    # Remove trailing punctuation
+    text = re.sub(r"[?.!]+$", "", text).strip()
+    return text or text
+
+
 def search_and_index(query: str, category: Optional[str] = None) -> "list[str]":
-    full_query = f"cat:{category} AND {query}" if category else query
-    search = arxiv.Search(
-        query=full_query,
-        max_results=MAX_PAPERS,
-        sort_by=arxiv.SortCriterion.SubmittedDate,
-        sort_order=arxiv.SortOrder.Descending,
-    )
-    return [index_paper(p) for p in search.results()]
+    keywords = extract_keywords(query)
+    full_query = f"cat:{category} AND {keywords}" if category else keywords
+    try:
+        search = arxiv.Search(
+            query=full_query,
+            max_results=MAX_PAPERS,
+            sort_by=arxiv.SortCriterion.SubmittedDate,
+            sort_order=arxiv.SortOrder.Descending,
+        )
+        return [index_paper(p) for p in search.results()]
+    except Exception:
+        return []
 
 
 def retrieve_context(query: str, n_results: int = 8):
@@ -221,7 +237,13 @@ async def chat(req: ChatRequest):
             cat_label = f" in {category}" if category else ""
             yield f"data: {json.dumps({'type': 'status', 'text': f'Searching arXiv{cat_label}...'})}\n\n"
             loop = asyncio.get_event_loop()
+            before = len(indexed_papers)
             await loop.run_in_executor(None, search_and_index, query, category)
+            new_count = len(indexed_papers) - before
+            if new_count == 0 and not indexed_papers:
+                yield f"data: {json.dumps({'type': 'status', 'text': 'arXiv search failed or returned no results. Try rephrasing.'})}\n\n"
+                yield 'data: {"type": "done"}\n\n'
+                return
             yield f"data: {json.dumps({'type': 'status', 'text': f'Indexed {len(indexed_papers)} paper(s) — generating answer...'})}\n\n"
 
         context, sources = retrieve_context(user_message)
