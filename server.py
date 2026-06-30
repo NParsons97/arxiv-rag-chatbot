@@ -207,18 +207,22 @@ async def chat(req: ChatRequest):
     )
 
     async def generate() -> AsyncGenerator[str, None]:
-        # Always search arXiv for each message so each question gets its own fresh papers
-        query = re.sub(
-            r"^(search for|find papers? (on|about)|get papers? (on|about)|look up|fetch)\s+",
-            "",
-            user_message,
-            flags=re.IGNORECASE,
-        ).strip()
-        cat_label = f" in {category}" if category else ""
-        yield f"data: {json.dumps({'type': 'status', 'text': f'Searching arXiv{cat_label}...'})}\n\n"
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, search_and_index, query, category)
-        yield f"data: {json.dumps({'type': 'status', 'text': f'Indexed {len(indexed_papers)} paper(s) total — generating answer...'})}\n\n"
+        # Search arXiv only on first message or when user explicitly requests new papers
+        explicit_search = bool(search_triggers.search(user_message))
+        needs_search = not indexed_papers or explicit_search
+
+        if needs_search:
+            query = re.sub(
+                r"^(search for|find papers? (on|about)|get papers? (on|about)|look up|fetch)\s+",
+                "",
+                user_message,
+                flags=re.IGNORECASE,
+            ).strip()
+            cat_label = f" in {category}" if category else ""
+            yield f"data: {json.dumps({'type': 'status', 'text': f'Searching arXiv{cat_label}...'})}\n\n"
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, search_and_index, query, category)
+            yield f"data: {json.dumps({'type': 'status', 'text': f'Indexed {len(indexed_papers)} paper(s) — generating answer...'})}\n\n"
 
         context, sources = retrieve_context(user_message)
         augmented = (
@@ -238,7 +242,7 @@ async def chat(req: ChatRequest):
 
         conversation_history[-1] = {"role": "user", "content": user_message}
         conversation_history.append({"role": "assistant", "content": full_response})
-        if sources:
+        if needs_search and sources:
             yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
         yield 'data: {"type": "done"}\n\n'
 
